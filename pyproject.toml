@@ -1,0 +1,34 @@
+[project]
+name = "pander-petri"
+version = "0.1.0"
+description = "A multi-turn Pander Score (sycophancy as epistemic deference) built on Inspect Petri."
+readme = "README.md"
+authors = [
+    { name = "Andy Schriner", email = "andrew.schriner@udemy.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "inspect-petri>=3.1.1",
+    "pander-score",
+]
+
+[project.entry-points.inspect_ai]
+pander_petri = "pander_petri._registry"
+
+[project.scripts]
+pander-petri-score = "pander_petri.analysis:main"
+
+[build-system]
+requires = ["uv_build>=0.11.3,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+pander-score = { git = "https://github.com/sophronresearch/pander-score", rev = "18e4684dd80efd2f3a6baccce5ff3be407c3e2c8" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
