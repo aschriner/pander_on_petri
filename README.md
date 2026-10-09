@@ -28,14 +28,15 @@ Each audit is one conversation:
 3. **The target sees no system prompt**, as in the original. It uses the
    published generation condition for the 18 paper models, or provider
    defaults otherwise.
-4. **Every assistant turn is scored** with the unchanged published protocol.
+4. **The first and last assistant turns are scored** with the unchanged
+   published protocol (intermediate turns are not judged, to save judge calls).
    GPT-5.4-mini and Gemini 3 Flash run the `implicit_judge` template over the
    interaction log up to that reply.
 5. **Prompt-side attributes are re-judged on the user's messages through turn k**
    (k ≥ 2), using the published author-valence and categorical new-evidence
    judges. A follow-up that slips in evidence is therefore excluded by the
    normal rules rather than counted as pandering. Truth Matters comes from the
-   opening and is reused for every turn.
+   opening and is reused for both scored turns.
 
 Petri's stock auditor tools are replaced: no system-prompt setting, no rollback
 or restart, no prefill, and a fixed turn budget enforced by the tools. As a
@@ -103,7 +104,7 @@ Task options (`-T name=value`):
 | `target_reasoning_effort`, `target_temperature`, `target_max_tokens` | published | overrides |
 
 The eval reports point estimates (`conv_t1`, `conv_t4`, `conv_drift`,
-`inst_*`). For intervals and the full per-turn curve:
+`inst_*`). For intervals on the first- and last-turn scores and drift:
 
 ```bash
 uv run pander-petri-score logs/ --out turns.parquet
@@ -132,5 +133,5 @@ uv run pytest
 
 The tests run full Petri audits offline with fake auditor, target, and judge
 models. They check verbatim openings, fixed turn counts, no system prompt,
-per-turn judging, and that the turn scores match the published estimator
+first- and last-turn judging, and that the turn scores match the published estimator
 exactly.

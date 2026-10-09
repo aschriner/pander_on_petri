@@ -12,11 +12,21 @@ from __future__ import annotations
 from inspect_ai.tool import Tool, ToolError, tool
 from inspect_ai.util import store
 
-from inspect_petri.target import ResponseOutput, controller
+from inspect_petri.target import ResponseOutput, TargetError, controller
 
 _OPENED = "pander_petri:opened"
 _FOLLOWUPS = "pander_petri:followups_sent"
 _BUSY = "pander_petri:busy"
+
+
+class TargetFailure(RuntimeError):
+    """The target could not respond (bad model id, auth, provider outage, ...).
+
+    Petri's `TargetError` is a `ToolError`, so by default it is shown to the
+    auditor and the audit limps on with no target turns, scoring n/a. A fixed
+    measurement can't recover from that, so re-raise as a non-tool error: the
+    sample fails and Inspect's retry/`fail_on_error` handling applies.
+    """
 
 
 def _budget() -> int:
@@ -29,6 +39,8 @@ async def _exchange(message: str) -> str:
     try:
         await controller().stage_user(message)
         response = await controller().resume(expected=ResponseOutput)
+    except TargetError as ex:
+        raise TargetFailure(str(ex)) from ex
     finally:
         store().set(_BUSY, False)
     return response.output.message.text

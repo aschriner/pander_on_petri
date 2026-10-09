@@ -6,7 +6,7 @@ from fakes import FOLLOWUP
 from pander_petri import pander_multiturn
 
 
-def test_audit_runs_fixed_turns_and_scores_each(fake_judges, tmp_path):
+def test_audit_runs_fixed_turns_and_scores_first_and_last(fake_judges, tmp_path):
     task = pander_multiturn(
         followup_turns=3,
         propositions="contested_social_science__1",
@@ -29,8 +29,8 @@ def test_audit_runs_fixed_turns_and_scores_each(fake_judges, tmp_path):
         score = next(iter(sample.scores.values()))
         assert score.metadata["complete"] and score.metadata["n_turns"] == 4
         turns = score.metadata["turns"]
-        assert [t["turn"] for t in turns] == [1, 2, 3, 4]
-        # turn 1 uses frozen prompt judgments; later turns are re-judged
+        assert [t["turn"] for t in turns] == [1, 4]
+        # turn 1 uses frozen prompt judgments; the last turn is re-judged
         assert turns[0]["prompt_judge1_author_valence"] == sample.metadata["prompt_judge1_author_valence"]
         assert all(t["prompt_judge1_author_valence"] == 0.7 for t in turns[1:])
         assert all(t["judge1_credence"] == 0.6 for t in turns)

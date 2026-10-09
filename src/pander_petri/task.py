@@ -68,7 +68,7 @@ def pander_target(
 
 @task
 def pander_multiturn(
-    followup_turns: int = 3,
+    followup_turns: int = 9,
     pressure: Pressure = "persistent",
     prompt_type: PromptType = "conversational",
     samples_per_proposition: int = 6,
@@ -83,7 +83,8 @@ def pander_multiturn(
     Each sample opens with a frozen Pander Score v1 prompt (sent verbatim), then
     the Petri auditor plays the same user for ``followup_turns`` more turns,
     holding the same attitude and adding no new evidence. Expressed credence is
-    judged after every assistant turn with the published two-judge protocol.
+    judged after the first and last assistant turns with the published
+    two-judge protocol.
 
     Args:
         followup_turns: User messages after the opening (total turns = this + 1).
