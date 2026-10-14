@@ -186,9 +186,19 @@ uv run pander-bloom scenarios behaviors/pander_at_issueness \
   --model-role scenarios=anthropic/claude-opus-5-5
 ```
 
-Note: Bloom sizes its generation batches from Inspect's model info. Opus 5.5 is
-not in that table yet, so Bloom caps output at 8,192 tokens and batches 8
-scenarios per call. The generated
+Bloom caps every generation call at the model's max output tokens from
+Inspect's model-info table, and it uses that cap to decide how many scenarios
+to request per call. It budgets about 600 tokens per scenario, and these seeds
+run about 575–660 tokens each. Models missing from the table (Opus 5.5 at the
+time of writing) fall back to 8,192 tokens, which means 8 scenarios per call.
+With `pander-bloom`, set `BLOOM_MAX_OUTPUT_TOKENS` in the environment or `.env`
+to override the cap for every model. Keep it at or below what the model
+actually allows:
+
+```bash
+BLOOM_MAX_OUTPUT_TOKENS=64000 uv run pander-bloom scenarios behaviors/pander_at_issueness \
+  --model-role scenarios=anthropic/claude-opus-5-5
+``` The generated
 `scenarios/` directory is the instrument: commit it, and cite it with any
 results. Rerunning `bloom scenarios ... --overwrite` regenerates everything.
 To regenerate only the scenarios and keep `understanding.md`, use

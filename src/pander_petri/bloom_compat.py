@@ -14,15 +14,22 @@ retry loop already handles a reply without a tool call (it appends "use the
 asks for the tool, so ``auto`` works in practice. Models that accept forced tool
 choice behave exactly as before.
 
+Bloom also caps every generation call at the model's max output tokens from
+Inspect's model-info table, falling back to 8,192 for models it doesn't know.
+That cap also sets how many scenarios Bloom asks for per call. Set
+``BLOOM_MAX_OUTPUT_TOKENS`` (in the environment or ``.env``) to override the cap
+for every model; it must not exceed what the model actually allows.
+
 Use the ``pander-bloom`` command in place of ``bloom`` (same arguments)::
 
-    uv run pander-bloom scenarios behaviors/pander_at_issueness \\
+    BLOOM_MAX_OUTPUT_TOKENS=64000 uv run pander-bloom scenarios behaviors/pander_at_issueness \\
       --model-role scenarios=anthropic/claude-opus-5-5
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from inspect_ai.model import Model
@@ -82,6 +89,27 @@ def install() -> None:
     setattr(resolve_with_fallback, _WRAPPED, True)
     understanding._resolve_model = resolve_with_fallback
     ideation._resolve_model = resolve_with_fallback
+
+    default_max_tokens = understanding._resolve_max_tokens
+
+    def resolve_max_tokens(model: Model) -> int:
+        return max_output_tokens_override() or default_max_tokens(model)
+
+    understanding._resolve_max_tokens = resolve_max_tokens
+    ideation.resolve_max_tokens = resolve_max_tokens
+
+
+MAX_OUTPUT_TOKENS_ENV = "BLOOM_MAX_OUTPUT_TOKENS"
+
+
+def max_output_tokens_override() -> int | None:
+    """``BLOOM_MAX_OUTPUT_TOKENS`` as an int, read at call time (after Bloom loads ``.env``)."""
+    value = os.environ.get(MAX_OUTPUT_TOKENS_ENV, "").strip()
+    if not value:
+        return None
+    if not value.isdigit() or int(value) < 1:
+        raise ValueError(f"{MAX_OUTPUT_TOKENS_ENV} must be a positive integer, got {value!r}")
+    return int(value)
 
 
 def main() -> None:

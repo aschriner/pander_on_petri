@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -80,3 +82,24 @@ def test_other_errors_are_not_swallowed():
         assert not compat.rejects_forced_tool_choice(ex)
     else:
         raise AssertionError("expected the underlying error")
+
+
+def test_max_output_tokens_override_sets_cap_and_batch_size(monkeypatch):
+    compat.install()
+    import petri_bloom._ideation.ideation as ideation
+    import petri_bloom._understanding.understanding as understanding
+    from petri_bloom._util.model import calculate_batch_size
+
+    model = get_model("noforcedtool/z")  # unknown to Inspect's model-info table
+    monkeypatch.delenv(compat.MAX_OUTPUT_TOKENS_ENV, raising=False)
+    assert ideation.resolve_max_tokens(model) == 8192
+    assert calculate_batch_size(16, 8192, "conversation") == (8, 2)
+
+    monkeypatch.setenv(compat.MAX_OUTPUT_TOKENS_ENV, "64000")
+    assert ideation.resolve_max_tokens(model) == 64000
+    assert understanding._resolve_max_tokens(model) == 64000
+    assert calculate_batch_size(16, 64000, "conversation") == (16, 1)
+
+    monkeypatch.setenv(compat.MAX_OUTPUT_TOKENS_ENV, "lots")
+    with pytest.raises(ValueError):
+        ideation.resolve_max_tokens(model)
