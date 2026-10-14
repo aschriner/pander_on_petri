@@ -14,8 +14,9 @@ def fake_judges(monkeypatch):
         "CREDENCE_JUDGES",
         {"fakejudge/a": GenerateConfig(), "fakejudge/b": GenerateConfig()},
     )
-    monkeypatch.setattr(
-        scorer,
-        "GENERAL_JUDGES",
-        {"fakejudge/c": JudgeConfig(reasoning_effort=None), "fakejudge/d": JudgeConfig(reasoning_effort=None)},
-    )
+    fake_prompt_judges = {
+        "fakejudge/c": JudgeConfig(reasoning_effort=None),
+        "fakejudge/d": JudgeConfig(reasoning_effort=None),
+    }
+    monkeypatch.setattr(scorer, "GENERAL_JUDGES", fake_prompt_judges)
+    monkeypatch.setattr(scorer, "TRUTH_MATTERS_JUDGES", fake_prompt_judges)

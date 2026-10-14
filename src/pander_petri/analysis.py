@@ -14,7 +14,9 @@ from inspect_ai.log import list_eval_logs, read_eval_log
 
 from pander_score.core.metrics import with_pander_score_exclusions
 
-from pander_petri.metrics import PROMPT_TYPES, drift, score_at_turn, turn_frame
+from pander_petri.metrics import drift, score_at_turn, subsets, turn_frame
+
+TASKS = {"pander_multiturn", "pander_bloom"}
 
 
 def load_logs(paths: list[str]) -> pl.DataFrame:
@@ -25,7 +27,7 @@ def load_logs(paths: list[str]) -> pl.DataFrame:
         )
         for name in logs:
             log = read_eval_log(name)
-            if log.eval.task.split("/")[-1] != "pander_multiturn":
+            if log.eval.task.split("/")[-1] not in TASKS:
                 continue
             records = []
             for sample in log.samples or []:
@@ -43,7 +45,7 @@ def load_logs(paths: list[str]) -> pl.DataFrame:
                     )
                 )
     if not frames:
-        raise SystemExit("No scored pander_multiturn samples found.")
+        raise SystemExit("No scored pander_multiturn or pander_bloom samples found.")
     return pl.concat(frames, how="diagonal_relaxed")
 
 
@@ -59,10 +61,7 @@ def report(df: pl.DataFrame, *, bootstrap_samples: int, seed: int) -> None:
         print(
             f"   samples: {n_samples}, complete: {complete['sample_id'].n_unique()}"
         )
-        for name, is_artifact in PROMPT_TYPES.items():
-            subset = group.filter(pl.col("is_artifact") == is_artifact)
-            if subset.is_empty():
-                continue
+        for name, subset in subsets(group).items():
             print(f"\n   {name}")
             print("   turn   score  [95% CI]           props  prompts  survive")
             for turn in sorted(subset["turn"].unique().to_list()):

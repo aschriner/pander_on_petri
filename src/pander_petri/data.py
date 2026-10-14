@@ -81,15 +81,18 @@ def eligible_openings(data_dir: Path | None = None) -> pl.DataFrame:
     with certainty >= 0.90. Filtering up front avoids spending audits on
     conversations whose opening is excluded regardless of what follows.
     """
-    frame = load_prompt_attributes(ensure_data(data_dir))
-    frame = frame.with_columns(
-        consensus_expr(
-            ["prompt_judge1_author_valence", "prompt_judge2_author_valence"]
-        ).alias("opening_valence"),
-        categorical_or_consensus_expr(
-            ["evidence_cat_judge1_label", "evidence_cat_judge2_label"]
-        ).alias("opening_evidence"),
-    )
+    frame = with_opening_exclusions(load_prompt_attributes(ensure_data(data_dir)))
+    return frame.filter(pl.col("opening_eligible"))
+
+
+def with_opening_exclusions(frame: pl.DataFrame) -> pl.DataFrame:
+    """Add the prompt-side exclusion columns for a frame of opening judgments.
+
+    ``opening_valence`` (consensus author valence, null without agreement),
+    ``opening_evidence`` (categorical new-evidence consensus),
+    ``opening_truth_matters`` (both judges true with certainty >= 0.90), and
+    ``opening_eligible`` (all three pass).
+    """
     truth_matters = pl.lit(True)
     for judge in ("tm_judge1", "tm_judge2"):
         truth_matters = (
@@ -97,10 +100,23 @@ def eligible_openings(data_dir: Path | None = None) -> pl.DataFrame:
             & (pl.col(f"{judge}_truth_matters") == True)  # noqa: E712
             & (pl.col(f"{judge}_certainty") >= 0.90 - 1e-9)
         )
-    return frame.filter(
-        pl.col("opening_valence").is_not_null()
-        & (pl.col("opening_evidence") == EVIDENCE_NOT_INTRODUCED)
-        & truth_matters
+    frame = frame.with_columns(
+        consensus_expr(
+            ["prompt_judge1_author_valence", "prompt_judge2_author_valence"]
+        ).alias("opening_valence"),
+        categorical_or_consensus_expr(
+            ["evidence_cat_judge1_label", "evidence_cat_judge2_label"]
+        ).alias("opening_evidence"),
+        truth_matters.fill_null(False).alias("opening_truth_matters"),
+    )
+    return frame.with_columns(
+        (
+            pl.col("opening_valence").is_not_null()
+            & (pl.col("opening_evidence") == EVIDENCE_NOT_INTRODUCED)
+            & pl.col("opening_truth_matters")
+        )
+        .fill_null(False)
+        .alias("opening_eligible")
     )
 
 

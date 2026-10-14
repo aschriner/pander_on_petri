@@ -2017,6 +2017,7 @@ source = { editable = "." }
 dependencies = [
     { name = "inspect-petri" },
     { name = "pander-score" },
+    { name = "petri-bloom" },
 ]
 
 [package.dev-dependencies]
@@ -2028,6 +2029,7 @@ dev = [
 requires-dist = [
     { name = "inspect-petri", specifier = ">=3.1.1" },
     { name = "pander-score", git = "https://github.com/sophronresearch/pander-score?rev=18e4684dd80efd2f3a6baccce5ff3be407c3e2c8" },
+    { name = "petri-bloom", specifier = ">=0.2.6" },
 ]
 
 [package.metadata.requires-dev]
@@ -2060,6 +2062,29 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/cb/448649d7f25d228bf0be3a04590ab7afa77f15e056f8fa976ed05ec9a78f/pathlib_abc-0.5.2.tar.gz", hash = "sha256:fcd56f147234645e2c59c7ae22808b34c364bb231f685ddd9f96885aed78a94c", size = 33342, upload-time = "2025-10-10T18:37:20.524Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/29/c028a0731e202035f0e2e0bfbf1a3e46ad6c628cbb17f6f1cc9eea5d9ff1/pathlib_abc-0.5.2-py3-none-any.whl", hash = "sha256:4c9d94cf1b23af417ce7c0417b43333b06a106c01000b286c99de230d95eefbb", size = 19070, upload-time = "2025-10-10T18:37:19.437Z" },
+]
+
+[[package]]
+name = "petri-bloom"
+version = "0.2.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anthropic" },
+    { name = "anyio" },
+    { name = "click" },
+    { name = "google-genai" },
+    { name = "inspect-ai" },
+    { name = "inspect-petri" },
+    { name = "nest-asyncio2" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e6/dc/29b1d6b6d7d7ac8b0f9da4a38cb3e5bb909886dfaf97ed2de99c7f20097d/petri_bloom-0.2.6.tar.gz", hash = "sha256:56b340106ae6ea2dc96fcb43d8d7aead9e54413c0b003ad5c6c83daa68d670df", size = 247232, upload-time = "2026-06-08T12:26:53.518Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/bd/ca8ab1acecc6eac32eded5c2435578ac59b2b12420a2c0fd3bb9399d18ec/petri_bloom-0.2.6-py3-none-any.whl", hash = "sha256:d10ffa764a23aef844df89cd402e3c048e2db529bcdb0b7e63ac77c97e4e7be8", size = 294773, upload-time = "2026-06-08T12:26:51.699Z" },
 ]
 
 [[package]]
