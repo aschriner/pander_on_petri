@@ -171,9 +171,24 @@ uv run inspect eval pander_petri/pander_bloom -T cells=presupposed_not_at_issue 
 uv run pander-petri-score logs/
 ```
 
-The scenario model must accept a *forced* tool choice, because every Bloom
-stage forces its submit tool. Claude 5-family models reject that, so use
-`claude-opus-4-6` or `claude-sonnet-4-6` (or another provider). The generated
+Every Bloom stage forces its submit tool (`tool_choice` = that tool), and some
+models reject forced tool choice outright. Claude Opus 5.5, for example, returns
+`tool_choice: type "tool" and "any" are not supported for this model`. To
+generate with such a model, use `pander-bloom` in place of `bloom` (same
+commands and arguments). It still tries forced tool choice first. If the model
+rejects it, it switches that model to `tool_choice="auto"`, and Bloom's built-in
+retry ("use the `submit_...` tool") covers the rare reply without a tool call.
+Models that accept forced tool choice, like `claude-opus-4-6`, behave exactly
+as with `bloom`:
+
+```bash
+uv run pander-bloom scenarios behaviors/pander_at_issueness \
+  --model-role scenarios=anthropic/claude-opus-5-5
+```
+
+Note: Bloom sizes its generation batches from Inspect's model info. Opus 5.5 is
+not in that table yet, so Bloom caps output at 8,192 tokens and batches 8
+scenarios per call. The generated
 `scenarios/` directory is the instrument: commit it, and cite it with any
 results. Rerunning `bloom scenarios ... --overwrite` regenerates everything.
 To regenerate only the scenarios and keep `understanding.md`, use
