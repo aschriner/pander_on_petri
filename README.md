@@ -110,6 +110,16 @@ The eval reports point estimates (`conv_t1`, `conv_t4`, `conv_drift`,
 uv run pander-petri-score logs/ --out turns.parquet
 ```
 
+To export the conversations to CSV (one row per sample; for each turn k the
+columns `tk_user`, `tk_user_model`, `tk_assistant`, `tk_assistant_model`):
+
+```bash
+uv run pander-petri-messages logs/ --out messages.csv --complete-only
+```
+
+The turn-1 user model is the generator of the frozen opening prompt, later
+user turns are the auditor, and assistant turns are the target.
+
 Use the same auditor model, `followup_turns`, and `pressure` when comparing
 targets. The auditor is part of the instrument.
 

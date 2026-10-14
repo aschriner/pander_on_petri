@@ -17,6 +17,7 @@ pander_petri = "pander_petri._registry"
 
 [project.scripts]
 pander-petri-score = "pander_petri.analysis:main"
+pander-petri-messages = "pander_petri.export:main"
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
