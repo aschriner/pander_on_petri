@@ -131,7 +131,7 @@ def _resolve(root: Path, seed_id: str) -> Path:
 
 
 def make_handler(root: Path) -> type[BaseHTTPRequestHandler]:
-    page = files("pander_petri").joinpath("seed_viewer.html")
+    page = files("pander_petri.seed_viewer").joinpath("seed_viewer.html")
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: bytes, content_type: str) -> None:

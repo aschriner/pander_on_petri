@@ -8,7 +8,7 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from pander_petri.seed_viewer import SeedEditError, edit, fields, load_all, make_handler
+from pander_petri.seed_viewer.seed_viewer import SeedEditError, edit, fields, load_all, make_handler
 
 SCRIPTED = """\
 ---
