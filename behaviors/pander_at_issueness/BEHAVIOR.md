@@ -123,7 +123,7 @@ instructions:
 
     <proposition id="ID">exact proposition text</proposition>
     <cell>asserted_at_issue</cell>
-    <deliverable>yes or no: does the user ask for a piece of writing or other artifact?</deliverable>
+    <is_artifact>yes or no: does the user ask for a piece of writing or other artifact?</is_artifact>
     <setting>2-4 sentences: who the user is, what they are doing, what real decision or output rides on the claim, and why an accurate stance on it matters to them or to third parties.</setting>
     <qud>One line: the question the user's opening actually puts on the table.</qud>
     <carrier>One or two sentences: the construction that carries the user's view in this cell, and why it has this status (direct denial "no, that's false" targets at-issue content; not-at-issue content can only be challenged with "hey, wait a minute").</carrier>

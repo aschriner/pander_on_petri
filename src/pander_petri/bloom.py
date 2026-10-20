@@ -25,7 +25,7 @@ from pathlib import Path
 from inspect_ai.dataset import MemoryDataset, Sample
 from petri_bloom import Behavior, Scenario
 
-from pander_petri.data import Pressure, ensure_data
+from pander_petri.data import ensure_data
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ DEFAULT_STANCES = ("believer", "skeptic")
 
 _TAG = re.compile(r"<(?P<tag>[a-z_]+)(?P<attrs>[^>]*)>(?P<body>.*?)</(?P=tag)>", re.DOTALL)
 _ATTR = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
+# a fixed follow-up nested in <followups>: <turn2 stance="believer">...</turn2>
+_TURN = re.compile(r"<turn(?P<turn>\d+)(?P<attrs>[^>]*)>(?P<body>.*?)</turn(?P=turn)>", re.DOTALL)
 # seed tag -> label the user simulator sees
 _PACKAGING_TAGS = {
     "qud": "users_question",
@@ -56,14 +58,48 @@ class BloomOpening:
     opening: str
     is_artifact: bool
     packaging: dict[str, str]
+    scripted: tuple[str, ...] = ()
+    """Fixed follow-ups (turns 2, 3, ...) when the seed is fully scripted, else empty."""
 
 
 class SeedFormatError(ValueError):
     """A Bloom seed is missing the tagged blocks a Pander audit needs."""
 
 
+def scripted_turns(followups: str) -> dict[str, tuple[str, ...]]:
+    """A fully scripted ``<followups>`` block: the fixed user messages by stance, in order.
+
+    A scripted block holds only ``<turnN stance="...">`` tags, numbered by
+    conversation turn: 2, 3, ... without gaps, since turn 1 is the ``<opening>``.
+    Any other ``<followups>`` is general instructions for the auditor, and this
+    returns ``{}``.
+    """
+    matches = list(_TURN.finditer(followups))
+    if not matches:
+        return {}
+    if _TURN.sub("", followups).strip():
+        raise SeedFormatError("<followups> mixes <turnN> tags with other text")
+    by_stance: dict[str, dict[int, str]] = {}
+    for match in matches:
+        turn, stance = int(match["turn"]), dict(_ATTR.findall(match["attrs"])).get("stance")
+        if stance is None:
+            raise SeedFormatError(f"<turn{turn}> without a stance attribute")
+        turns = by_stance.setdefault(stance, {})
+        if turn in turns:
+            raise SeedFormatError(f"two <turn{turn}> tags for stance {stance}")
+        turns[turn] = match["body"].strip()
+    for stance, turns in by_stance.items():
+        if sorted(turns) != list(range(2, len(turns) + 2)):
+            raise SeedFormatError(
+                f"<turnN> tags for {stance} are numbered {sorted(turns)}; they must run "
+                "2, 3, ... (turn 1 is the <opening>)"
+            )
+    return {stance: tuple(turns[n] for n in sorted(turns)) for stance, turns in by_stance.items()}
+
+
 def parse_seed(seed: str) -> dict:
-    """Tagged blocks of a Pander seed: ``{tag: text}`` plus ``openings`` by stance."""
+    """Tagged blocks of a Pander seed: ``{tag: text}``, ``openings`` by stance, and
+    ``scripted`` (the fixed follow-ups by stance; ``{}`` unless fully scripted)."""
     parsed: dict = {"openings": {}}
     for match in _TAG.finditer(seed):
         tag, body = match["tag"], match["body"].strip()
@@ -75,6 +111,8 @@ def parse_seed(seed: str) -> dict:
         elif tag == "proposition":
             parsed["proposition"] = body
             parsed["proposition_id"] = attrs.get("id")
+        elif tag == "deliverable":
+            raise SeedFormatError("<deliverable> was renamed <is_artifact>")
         else:
             parsed[tag] = body
     missing = [tag for tag in ("proposition",) if tag not in parsed]
@@ -82,6 +120,7 @@ def parse_seed(seed: str) -> dict:
         missing.append("opening")
     if missing:
         raise SeedFormatError(f"missing <{'>, <'.join(missing)}>")
+    parsed["scripted"] = scripted_turns(parsed.get("followups", ""))
     return parsed
 
 
@@ -199,8 +238,11 @@ def bloom_openings(
         text, domain = bank.get(
             item.proposition_id, (seed["proposition"], item.proposition_id.split("__")[0])
         )
+        # a fully scripted <followups> is the user's messages, not auditor instructions
         packaging = {"cell": cell} | {
-            label: seed[tag] for tag, label in _PACKAGING_TAGS.items() if seed.get(tag)
+            label: seed[tag]
+            for tag, label in _PACKAGING_TAGS.items()
+            if seed.get(tag) and not (tag == "followups" and seed["scripted"])
         }
         if cell_rules.get(cell):
             packaging["rule_for_every_followup"] = cell_rules[cell]
@@ -208,6 +250,10 @@ def bloom_openings(
             if stance not in seed["openings"]:
                 skipped.append(f"{item.scenario_id} (no {stance} opening)")
                 continue
+            if seed["scripted"] and stance not in seed["scripted"]:
+                skipped.append(f"{item.scenario_id} (scripted, but no <turnN> for {stance})")
+                continue
+            scripted = seed["scripted"].get(stance, ())
             openings.append(
                 BloomOpening(
                     scenario_id=item.scenario_id,
@@ -218,8 +264,9 @@ def bloom_openings(
                     proposition=text,
                     domain=domain,
                     opening=seed["openings"][stance],
-                    is_artifact=seed.get("deliverable", "").lower().startswith("yes"),
+                    is_artifact=seed.get("is_artifact", "").lower().startswith("yes"),
                     packaging=packaging,
+                    scripted=scripted,
                 )
             )
     if skipped:
@@ -234,16 +281,25 @@ def build_bloom_samples(
     *,
     behavior_name: str,
     followup_turns: int,
-    pressure: Pressure,
+    score_turns: list[int],
+    truth_matters_turn: int,
+    scripted: bool = False,
 ) -> MemoryDataset:
+    """One sample per opening.
+
+    With ``scripted``, the follow-ups are the seed's ``<turnN>`` messages
+    (``scripted_turns`` in the metadata, sent without an auditor) and the sample
+    is marked ``scripted`` in the metadata.
+    """
     from pander_petri.prompts import seed_instructions
 
     samples = []
     for opening in openings:
         opening_id = f"{opening.scenario_id}__{opening.stance}"
+        extra = {"scripted_turns": list(opening.scripted[:followup_turns])} if scripted else {}
         samples.append(
             Sample(
-                id=f"{opening_id}__{pressure}{followup_turns}",
+                id=f"{opening_id}__{'scripted' if scripted else ''}{followup_turns}",
                 input=seed_instructions(
                     opening_prompt=opening.opening,
                     proposition=opening.proposition,
@@ -251,7 +307,6 @@ def build_bloom_samples(
                     opening_valence=None,
                     is_artifact=opening.is_artifact,
                     followup_turns=followup_turns,
-                    pressure=pressure,
                     packaging=opening.packaging,
                 ),
                 target=opening.proposition,
@@ -265,7 +320,10 @@ def build_bloom_samples(
                     "prior": opening.stance,
                     "is_artifact": opening.is_artifact,
                     "followup_turns": followup_turns,
-                    "pressure": pressure,
+                    "scripted": scripted,
+                    "score_turns": score_turns,
+                    "truth_matters_turn": truth_matters_turn,
+                    **extra,
                     "cell": opening.cell,
                     "scenario": opening.scenario_id,
                     "scenario_family": opening.family,

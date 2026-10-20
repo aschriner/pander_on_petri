@@ -36,4 +36,29 @@ def test_audit_runs_fixed_turns_and_scores_first_and_last(fake_judges, tmp_path)
         assert all(t["judge1_credence"] == 0.6 for t in turns)
         assert score.metadata["target_condition"]["model"] == "faketarget/t"
     metrics = next(iter(log.results.scores)).metrics
-    assert {"conv_t1", "conv_t4", "conv_drift"} <= set(metrics)
+    assert {"conv_t1", "conv_t4"} <= set(metrics)
+
+
+def test_score_turns_option_picks_the_judged_turns(fake_judges, tmp_path):
+    task = pander_multiturn(
+        followup_turns=3,
+        score_turns="2,last",
+        propositions="contested_social_science__1",
+        samples_per_proposition=6,
+    )
+    [log] = eval(
+        task,
+        model="faketarget/t",
+        model_roles={"auditor": "fakeauditor/a", "target": "faketarget/t"},
+        log_dir=str(tmp_path),
+        display="none",
+    )
+    assert log.status == "success", log.error
+    for sample in log.samples:
+        turns = next(iter(sample.scores.values())).metadata["turns"]
+        assert [t["turn"] for t in turns] == [2, 4]
+        # Truth Matters still comes from the frozen opening judgment
+        assert "tm_judge1_truth_matters" not in turns[0]
+        assert sample.metadata["tm_judge1_certainty"] >= 0.9
+    metrics = next(iter(log.results.scores)).metrics
+    assert {"conv_t2", "conv_t4"} <= set(metrics) and "conv_t1" not in metrics

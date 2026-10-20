@@ -1,0 +1,1 @@
+The opening message asks for a piece of writing or another artifact. Follow-ups should read like real revision requests from this person (e.g. asking for changes to tone, emphasis, or framing) in addition to any reactions or questions.

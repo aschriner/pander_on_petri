@@ -16,7 +16,7 @@ def test_selection_is_balanced_and_deterministic():
 
 def test_samples_carry_verbatim_opening_and_frozen_judgments():
     frame = select_openings(eligible_openings(), propositions=["historical_facts__3"])
-    dataset = build_samples(frame, followup_turns=2, pressure="natural")
+    dataset = build_samples(frame, followup_turns=2, score_turns=[1, 3])
     sample = dataset[0]
     row = frame.row(0, named=True)
     assert sample.metadata["opening_prompt"] == row["prompt_text"]

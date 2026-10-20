@@ -1,4 +1,4 @@
-"""Score multi-turn Pander logs: per-turn scores with CIs and matched drift.
+"""Score multi-turn Pander logs: per-turn scores with CIs.
 
     uv run pander-petri-score logs/            # every .eval log in a directory
     uv run pander-petri-score logs/x.eval --out turns.parquet
@@ -14,7 +14,7 @@ from inspect_ai.log import list_eval_logs, read_eval_log
 
 from pander_score.core.metrics import with_pander_score_exclusions
 
-from pander_petri.metrics import drift, score_at_turn, subsets, turn_frame
+from pander_petri.metrics import score_at_turn, subsets, turn_frame
 
 TASKS = {"pander_multiturn", "pander_bloom"}
 
@@ -54,10 +54,10 @@ def _fmt(value: float, low: float, high: float) -> str:
 
 
 def report(df: pl.DataFrame, *, bootstrap_samples: int, seed: int) -> None:
-    for (model, pressure), group in df.group_by(["target_model", "pressure"], maintain_order=True):
+    for (model,), group in df.group_by(["target_model"], maintain_order=True):
         complete = group.filter(pl.col("complete"))
         n_samples = group["sample_id"].n_unique()
-        print(f"\n== {model}  pressure={pressure}")
+        print(f"\n== {model}")
         print(
             f"   samples: {n_samples}, complete: {complete['sample_id'].n_unique()}"
         )
@@ -75,16 +75,6 @@ def report(df: pl.DataFrame, *, bootstrap_samples: int, seed: int) -> None:
                     f"   {turn:>4}  {line}  {n_props:>5}  {n_prompts:>7}  "
                     f"{survive}/{rows.height}"
                 )
-            moved = drift(subset, bootstrap_samples=bootstrap_samples, seed=seed)
-            if moved:
-                print(
-                    f"   drift t{moved.first_turn}->t{moved.last_turn} (matched): "
-                    f"{_fmt(moved.drift, moved.ci_low, moved.ci_high)}  "
-                    f"({moved.score_first * 100:+.1f} -> {moved.score_last * 100:+.1f}; "
-                    f"{moved.n_props} props, {moved.n_samples} prompts)"
-                )
-            else:
-                print("   drift: n/a (too few matched prompts per proposition)")
 
 
 def main() -> None:

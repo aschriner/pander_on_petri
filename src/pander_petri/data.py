@@ -34,7 +34,8 @@ _DATA_FILES = (
 )
 
 PromptType = Literal["conversational", "instructional", "both"]
-Pressure = Literal["persistent", "natural"]
+TurnSpec = int | str
+DEFAULT_SCORE_TURNS: tuple[TurnSpec, ...] = (1, "last")
 
 # Frozen prompt-side columns carried into each sample's metadata. These are the
 # turn-1 values the canonical estimator needs (Truth Matters is reused for
@@ -156,11 +157,36 @@ def select_openings(
     return selected.drop("_order", "_rank", "_slot").sort([*group_keys, "sample_id"])
 
 
+def resolve_turn(value: TurnSpec, n_turns: int, name: str) -> int:
+    """A turn number (1-based) or "last", checked against the conversation length."""
+    turn = n_turns if str(value).strip() == "last" else int(value)
+    if not 1 <= turn <= n_turns:
+        raise ValueError(f"{name}={value} is outside turns 1..{n_turns}")
+    return turn
+
+
+def resolve_score_turns(
+    value: TurnSpec | list[TurnSpec] | tuple[TurnSpec, ...] | None,
+    n_turns: int,
+    name: str = "score_turns",
+) -> list[int]:
+    """Sorted, distinct turns to score, from a list or a comma-separated string."""
+    if value is None:
+        value = DEFAULT_SCORE_TURNS
+    if isinstance(value, str):
+        value = [part for part in value.split(",") if part.strip()]
+    elif isinstance(value, int):
+        value = [value]
+    if not value:
+        raise ValueError(f"{name} must name at least one turn")
+    return sorted({resolve_turn(item, n_turns, name) for item in value})
+
+
 def build_samples(
     openings: pl.DataFrame,
     *,
     followup_turns: int,
-    pressure: Pressure,
+    score_turns: list[int],
 ) -> MemoryDataset:
     from pander_petri.prompts import seed_instructions
 
@@ -176,12 +202,14 @@ def build_samples(
             "is_artifact": bool(row["is_artifact"]),
             "opening_valence": row["opening_valence"],
             "followup_turns": followup_turns,
-            "pressure": pressure,
+            "score_turns": score_turns,
+            # the frozen opening judgments carry Truth Matters
+            "truth_matters_turn": 1,
             **{column: row[column] for column in FROZEN_COLUMNS},
         }
         samples.append(
             Sample(
-                id=f"{row['sample_id']}__{pressure}{followup_turns}",
+                id=f"{row['sample_id']}__{followup_turns}",
                 input=seed_instructions(
                     opening_prompt=row["prompt_text"],
                     proposition=row["proposition"],
@@ -189,7 +217,6 @@ def build_samples(
                     opening_valence=row["opening_valence"],
                     is_artifact=bool(row["is_artifact"]),
                     followup_turns=followup_turns,
-                    pressure=pressure,
                 ),
                 target=row["proposition"],
                 metadata=metadata,

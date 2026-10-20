@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 
 from pander_score.core.metrics import compute_pander_score, from_logit
-from pander_petri.metrics import drift, score_at_turn
+from pander_petri.metrics import score_at_turn
 
 NOT = "DOES_NOT_INTRODUCE_SUBSTANTIVE_NEW_EVIDENCE"
 
@@ -38,13 +38,6 @@ def test_turn_score_matches_published_estimator():
     assert abs(ours.score - 0.2) < 0.02
 
 
-def test_drift_recovers_known_change():
-    result = drift(synthetic({1: 0.2, 4: 0.5}), bootstrap_samples=200)
-    assert result.last_turn == 4
-    assert abs(result.drift - 0.3) < 0.03
-    assert result.ci_low < result.drift < result.ci_high
-    assert result.n_props == 30
-
 
 def test_incomplete_and_excluded_rows_are_dropped():
     df = synthetic({1: 0.2, 2: 0.2})
@@ -55,5 +48,5 @@ def test_incomplete_and_excluded_rows_are_dropped():
         .alias("evidence_cat_judge1_label"),
         (pl.col("proposition_id") != "p1").alias("complete"),
     )
-    result = drift(df, bootstrap_samples=10)
-    assert result.n_props == 28  # p0 excluded at turn 2 (matched), p1 incomplete
+    result = score_at_turn(df, 2, bootstrap_samples=10)
+    assert result.n_props == 28  # p0 excluded at turn 2, p1 incomplete

@@ -6,7 +6,8 @@ from pathlib import Path
 
 from inspect_ai import Task, task
 from inspect_ai.agent import Agent, AgentState, agent
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import ChatMessage, ChatMessageUser, GenerateConfig, Model, get_model
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import store
 
 from inspect_petri import audit_judge, audit_solver, auditor_agent, target_agent
@@ -16,12 +17,14 @@ from pander_score.core.config import DEFAULT_MAX_TOKENS, resolve_model_config
 from petri_bloom import Behavior
 from petri_bloom import behavior as load_behavior
 
-from pander_petri.bloom import bloom_openings, build_bloom_samples
+from pander_petri.bloom import bloom_openings, build_bloom_samples, pander_config
 from pander_petri.data import (
-    Pressure,
     PromptType,
+    TurnSpec,
     build_samples,
     eligible_openings,
+    resolve_score_turns,
+    resolve_turn,
     select_openings,
 )
 from pander_petri.prompts import AUDITOR_SYSTEM_MESSAGE, AUDITOR_USER_MESSAGE
@@ -45,30 +48,73 @@ def pander_target(
     """
 
     async def execute(state: AgentState, context: TargetContext) -> AgentState:
-        base = get_model(role="target", required=True)
-        resolved = resolve_model_config(
-            str(base),
-            reasoning_effort=reasoning_effort,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        store().set(TARGET_CONDITION_KEY, {"model": str(base), **resolved.to_dict()})
-        config = base.config.merge(
-            GenerateConfig(
-                reasoning_effort=resolved.reasoning_effort,  # type: ignore[arg-type]
-                temperature=resolved.temperature,
-                max_tokens=resolved.max_tokens,
-            )
-        )
-        model = get_model(
-            str(base),
-            config=config,
-            base_url=base.explicit_base_url,
-            **base.model_args,
+        model = _target_model(
+            reasoning_effort=reasoning_effort, temperature=temperature, max_tokens=max_tokens
         )
         return await target_agent(model=model, system_required=False)(state, context)
 
     return execute
+
+
+def _target_model(
+    *, reasoning_effort: str | None, temperature: float | None, max_tokens: int
+) -> Model:
+    """The ``target`` role model under the published Pander generation condition.
+
+    Records the resolved condition in the sample store for the scorer.
+    """
+    base = get_model(role="target", required=True)
+    resolved = resolve_model_config(
+        str(base),
+        reasoning_effort=reasoning_effort,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    store().set(TARGET_CONDITION_KEY, {"model": str(base), **resolved.to_dict()})
+    config = base.config.merge(
+        GenerateConfig(
+            reasoning_effort=resolved.reasoning_effort,  # type: ignore[arg-type]
+            temperature=resolved.temperature,
+            max_tokens=resolved.max_tokens,
+        )
+    )
+    return get_model(
+        str(base),
+        config=config,
+        base_url=base.explicit_base_url,
+        **base.model_args,
+    )
+
+
+@solver
+def scripted_solver(
+    *,
+    target_reasoning_effort: str | None = None,
+    target_temperature: float | None = None,
+    target_max_tokens: int = DEFAULT_MAX_TOKENS,
+) -> Solver:
+    """Send the opening and the sample's ``scripted_turns`` to the target, with no auditor.
+
+    Leaves the target conversation in ``state.messages``, as ``audit_solver`` does,
+    so the same scorer applies. No system prompt.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = _target_model(
+            reasoning_effort=target_reasoning_effort,
+            temperature=target_temperature,
+            max_tokens=target_max_tokens,
+        )
+        messages: list[ChatMessage] = []
+        for text in [state.metadata["opening_prompt"], *state.metadata["scripted_turns"]]:
+            messages.append(ChatMessageUser(content=text))
+            output = await model.generate(messages)
+            messages.append(output.message)
+        state.messages = messages
+        state.output = output
+        return state
+
+    return solve
 
 
 def _pander_solver(
@@ -104,7 +150,7 @@ def _split(value: str | list[str] | None) -> list[str] | None:
 @task
 def pander_multiturn(
     followup_turns: int = 9,
-    pressure: Pressure = "persistent",
+    score_turns: str | list[TurnSpec] = "1,last",
     prompt_type: PromptType = "conversational",
     samples_per_proposition: int = 6,
     propositions: str | list[str] | None = None,
@@ -118,13 +164,12 @@ def pander_multiturn(
     Each sample opens with a frozen Pander Score v1 prompt (sent verbatim), then
     the Petri auditor plays the same user for ``followup_turns`` more turns,
     holding the same attitude and adding no new evidence. Expressed credence is
-    judged after the first and last assistant turns with the published
-    two-judge protocol.
+    judged after each of ``score_turns`` with the published two-judge protocol.
 
     Args:
         followup_turns: User messages after the opening (total turns = this + 1).
-        pressure: "persistent" (push back when the assistant disagrees with the
-            user's lean) or "natural" (continue in character without arguing).
+        score_turns: Turns to judge and score (comma-separated or list; turn
+            numbers or "last"). Truth Matters comes from the frozen opening.
         prompt_type: "conversational", "instructional" (artifact requests), or "both".
         samples_per_proposition: Openings per proposition (per prompt type),
             balanced across skeptic/neutral/believer priors. The estimator needs
@@ -149,7 +194,11 @@ def pander_multiturn(
         seed=selection_seed,
     )
     return Task(
-        dataset=build_samples(openings, followup_turns=followup_turns, pressure=pressure),
+        dataset=build_samples(
+            openings,
+            followup_turns=followup_turns,
+            score_turns=resolve_score_turns(score_turns, followup_turns + 1),
+        ),
         solver=_pander_solver(
             followup_turns=followup_turns,
             target_reasoning_effort=target_reasoning_effort,
@@ -191,11 +240,11 @@ def _bloom_judge_instructions(bhv: Behavior) -> str | None:
 def pander_bloom(
     behavior: str = DEFAULT_BEHAVIOR,
     followup_turns: int = 9,
-    pressure: Pressure = "persistent",
     stances: str | list[str] | None = None,
     cells: str | list[str] | None = None,
     propositions: str | list[str] | None = None,
     bloom_judge: bool = False,
+    scripted: bool | None = None,
     target_reasoning_effort: str | None = None,
     target_temperature: float | None = None,
     target_max_tokens: int = DEFAULT_MAX_TOKENS,
@@ -206,7 +255,8 @@ def pander_bloom(
     (scenario, stance) pair is audited exactly like ``pander_multiturn``: the
     opening is sent verbatim, the auditor plays the same user for
     ``followup_turns`` evidence-free follow-ups while keeping the claim packaged
-    as the seed describes, and the first and last replies are judged. Prompt-side
+    as the seed describes, and the replies at the behavior's ``score_turns`` are
+    judged. Prompt-side
     judgments (author valence, new evidence, Truth Matters) are run live, since
     the openings are new. Scores are reported per packaging cell (the Bloom
     variation axis; base scenarios use ``pander.base_cell``).
@@ -215,21 +265,24 @@ def pander_bloom(
         behavior: Bloom behavior directory with generated scenarios
             (``bloom scenarios <dir> --model-role scenarios=<model>``).
         followup_turns: User messages after the opening (total turns = this + 1).
-        pressure: "persistent" (push back when the assistant disagrees with the
-            user's lean) or "natural" (continue in character without arguing).
         stances: Stances to run (comma-separated). Default: ``pander.stances``
             from the behavior frontmatter.
         cells: Packaging cells to run (comma-separated). Default: all.
         propositions: Proposition ids to run (comma-separated). Default: all.
         bloom_judge: Also score each audit with Petri's alignment judge on the
             behavior's generated dimensions (needs the ``judge`` model role).
+        scripted: Send only the seed's fixed ``<turnN stance=...>`` messages from
+            ``<followups>`` (at most ``followup_turns`` of them), with no auditor
+            model.
+            Default: scripted exactly when the seeds are fully scripted (a
+            behavior's seeds must not mix scripted and auditor ``<followups>``).
         target_reasoning_effort: Override the published/default reasoning effort.
         target_temperature: Override the published/default temperature.
         target_max_tokens: Target max tokens (published condition: 16000).
 
     Model roles:
         target: The model being evaluated.
-        auditor: The model simulating the user.
+        auditor: The model simulating the user (not used when scripted).
         judge: Alignment judge (only with ``bloom_judge=true``).
     """
     if followup_turns < 1:
@@ -241,6 +294,40 @@ def pander_bloom(
         cells=_split(cells),
         propositions=_split(propositions),
     )
+    scripted_ids = sorted({o.scenario_id for o in openings if o.scripted})
+    unscripted_ids = sorted({o.scenario_id for o in openings if not o.scripted})
+    if scripted is None:
+        if scripted_ids and unscripted_ids:
+            raise ValueError(
+                "Some seeds are fully scripted (<turnN> tags in <followups>) and some are "
+                "not; run them separately with -T cells/propositions. Not scripted: "
+                + ", ".join(unscripted_ids)
+            )
+        scripted = bool(scripted_ids)
+    elif scripted and unscripted_ids:
+        raise ValueError(
+            "scripted=true needs <turnN> tags in every seed's <followups>; none in: "
+            + ", ".join(unscripted_ids)
+        )
+    elif not scripted and scripted_ids:
+        raise ValueError(
+            "scripted=false, but these seeds are fully scripted (their <followups> holds "
+            "<turnN> messages, not auditor instructions): " + ", ".join(scripted_ids)
+        )
+    if scripted and bloom_judge:
+        raise ValueError("bloom_judge needs an auditor transcript; it can't run scripted")
+    if scripted:
+        followup_turns = min(followup_turns, min(len(o.scripted) for o in openings))
+    config = pander_config(bhv)
+    if "pivot_turn" in config:
+        raise ValueError(
+            "pander.pivot_turn was replaced by pander.score_turns and pander.truth_matters_turn"
+        )
+    n_turns = followup_turns + 1
+    score_turns = resolve_score_turns(config.get("score_turns"), n_turns, "pander.score_turns")
+    truth_matters_turn = resolve_turn(
+        config.get("truth_matters_turn", 1), n_turns, "pander.truth_matters_turn"
+    )
     scorers = [pander_multiturn_scorer()]
     if bloom_judge:
         scorers.append(
@@ -251,13 +338,23 @@ def pander_bloom(
             openings,
             behavior_name=bhv.name,
             followup_turns=followup_turns,
-            pressure=pressure,
+            score_turns=score_turns,
+            truth_matters_turn=truth_matters_turn,
+            scripted=scripted,
         ),
-        solver=_pander_solver(
-            followup_turns=followup_turns,
-            target_reasoning_effort=target_reasoning_effort,
-            target_temperature=target_temperature,
-            target_max_tokens=target_max_tokens,
+        solver=(
+            scripted_solver(
+                target_reasoning_effort=target_reasoning_effort,
+                target_temperature=target_temperature,
+                target_max_tokens=target_max_tokens,
+            )
+            if scripted
+            else _pander_solver(
+                followup_turns=followup_turns,
+                target_reasoning_effort=target_reasoning_effort,
+                target_temperature=target_temperature,
+                target_max_tokens=target_max_tokens,
+            )
         ),
         scorer=scorers,
         tags=bhv.tags or None,
