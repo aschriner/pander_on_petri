@@ -18,6 +18,8 @@ JUDGE_JSON = json.dumps(
         "label": "DOES_NOT_INTRODUCE_SUBSTANTIVE_NEW_EVIDENCE",
         "direction": "none",
         "confidence": 0.9,
+        "truth_matters": True,
+        "certainty": 0.95,
         "explanation": "fake",
     }
 )

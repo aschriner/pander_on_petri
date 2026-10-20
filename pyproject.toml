@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "inspect-petri>=3.1.1",
     "pander-score",
+    "petri-bloom>=0.2.6",
 ]
 
 [project.entry-points.inspect_ai]
@@ -18,6 +19,8 @@ pander_petri = "pander_petri._registry"
 [project.scripts]
 pander-petri-score = "pander_petri.analysis:main"
 pander-petri-messages = "pander_petri.export:main"
+pander-petri-preflight = "pander_petri.preflight:main"
+pander-bloom = "pander_petri.bloom_compat:main"
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
