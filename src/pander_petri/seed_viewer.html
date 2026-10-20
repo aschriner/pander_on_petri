@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloom Seeds</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --fg: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+  --head: #f3f3f0; --grp: #eef1f6; --hover: #f7f7f4; --accent: #2f5bd3;
+  --believer: #1f6fd1; --believer-bg: #e8f1fc; --skeptic: #b8590b; --skeptic-bg: #fcefe3;
+  --other: #5a5a60; --other-bg: #efefef; --mark: #fff0a3; --err: #c4302b; --err-bg: #fdecea; --ok: #2e7d32;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181a; --panel: #1e1f22; --fg: #e6e6e6; --muted: #9a9aa0; --line: #33353a;
+    --head: #25272b; --grp: #232a36; --hover: #232528; --accent: #7aa2ff;
+    --believer: #7cb2f5; --believer-bg: #1d2c40; --skeptic: #f0a35e; --skeptic-bg: #3a2817;
+    --other: #bbb; --other-bg: #2c2c2e; --mark: #5c4d00; --err: #ff7b72; --err-bg: #3d1d1b; --ok: #6fcf75;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; display: flex; flex-direction: column; }
+button, select, input { font: inherit; color: inherit; }
+header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 15px; margin: 0; font-weight: 650; }
+.ctl { display: flex; align-items: center; gap: 6px; }
+.ctl > label.cap { color: var(--muted); font-size: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 4px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--accent); color: #fff; }
+select, input[type=search], input[type=text] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; cursor: pointer; user-select: none; }
+.chip input { margin: 0; }
+.chip .n { color: var(--muted); font-size: 11px; }
+details.menu { position: relative; }
+details.menu summary { list-style: none; cursor: pointer; border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; }
+details.menu summary::-webkit-details-marker { display: none; }
+details.menu .pop { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.15); max-height: 60vh; overflow: auto; min-width: 200px; }
+details.menu .pop label { display: flex; gap: 6px; padding: 2px 0; white-space: nowrap; }
+.toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+.spacer { flex: 1; }
+.count { color: var(--muted); }
+.wrap { flex: 1; overflow: auto; }
+table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+th, td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 6px 8px; vertical-align: top; text-align: left; background: var(--panel); }
+thead th { position: sticky; top: 0; z-index: 5; background: var(--head); font-weight: 600; }
+thead th .name { display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
+thead th .name .arrow { color: var(--accent); }
+thead th .name .tag { color: var(--muted); font-weight: 400; font-size: 11px; }
+thead th .filter { margin-top: 4px; }
+thead th .filter > * { width: 100%; font-weight: 400; font-size: 12px; }
+th.sticky, td.sticky { position: sticky; left: 0; z-index: 3; }
+thead th.sticky { z-index: 6; }
+.w-s { min-width: 7em; max-width: 14em; }
+.w-m { min-width: 16em; max-width: 26em; }
+.w-l { min-width: 26em; max-width: 38em; }
+tbody tr.row:hover td { background: var(--hover); }
+tr.row.bad td.sticky { box-shadow: inset 3px 0 0 var(--err); }
+tr.grp td { background: var(--grp); padding: 0; border-right: 0; }
+tr.grp .g { position: sticky; left: 0; display: flex; gap: 8px; align-items: baseline; padding: 7px 10px; max-width: 100vw; cursor: pointer; }
+tr.grp .g b { white-space: nowrap; }
+tr.grp .g .desc { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr.grp .g .n { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.caret { display: inline-block; width: 1em; color: var(--muted); }
+.file { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; }
+.file .beh { color: var(--muted); display: block; font-size: 11px; }
+.file button.exp { border: 0; background: none; padding: 0 4px 0 0; cursor: pointer; color: var(--muted); }
+.sv + .sv { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.st { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 0 6px; border-radius: 4px; margin-bottom: 2px; color: var(--other); background: var(--other-bg); }
+.st.believer { color: var(--believer); background: var(--believer-bg); }
+.st.skeptic { color: var(--skeptic); background: var(--skeptic-bg); }
+.txt { white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; border-radius: 4px; }
+.txt:hover { outline: 1px dashed var(--line); outline-offset: 2px; }
+.clamp .txt { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+tr.open .txt { display: block; -webkit-line-clamp: unset; }
+.txt mark { background: var(--mark); color: inherit; border-radius: 2px; }
+.txt.empty { color: var(--muted); font-style: italic; }
+.err { color: var(--err); background: var(--err-bg); border-radius: 4px; padding: 2px 6px; display: inline-block; }
+.okmark { color: var(--ok); }
+textarea.ed { width: 100%; min-height: 6em; font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 5px; padding: 5px; resize: vertical; }
+.edbar { display: flex; gap: 6px; align-items: center; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.edbar button { border: 1px solid var(--line); background: var(--panel); border-radius: 5px; padding: 2px 8px; cursor: pointer; }
+.edbar button.save { background: var(--accent); color: #fff; border-color: var(--accent); }
+.empty-state { padding: 40px; color: var(--muted); text-align: center; }
+#toast { position: fixed; bottom: 16px; right: 16px; max-width: 480px; padding: 9px 13px; border-radius: 8px; background: var(--fg); color: var(--bg); opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; }
+#toast.show { opacity: .95; }
+#toast.bad { background: var(--err); color: #fff; }
+.help { color: var(--muted); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bloom seeds</h1>
+  <div class="ctl" id="behaviors"></div>
+  <div class="ctl"><label class="cap">Stance</label><div class="seg" id="stance"></div></div>
+  <div class="ctl"><label class="cap" for="groupBy">Group</label><select id="groupBy"></select></div>
+  <div class="ctl">
+    <details class="menu" id="colmenu"><summary>Columns ▾</summary><div class="pop" id="cols"></div></details>
+  </div>
+  <label class="toggle" title="Show every cell's full text instead of 4 lines"><input type="checkbox" id="full"> Full text</label>
+  <label class="toggle" title="With both stances shown, highlight words that differ between them"><input type="checkbox" id="diff"> Highlight stance diffs</label>
+  <div class="spacer"></div>
+  <input type="search" id="search" placeholder="Search all columns  ( / )" size="26">
+  <span class="count" id="count"></span>
+  <button id="reload" title="Re-read seed files from disk" class="chip" style="background:var(--panel)">↻ Reload</button>
+</header>
+<div class="wrap" id="wrap"></div>
+<div id="toast"></div>
+<script>
+"use strict";
+const STORE = "bloom-seed-viewer";
+const S = {
+  seeds: [], root: "",
+  behaviors: null,          // selected behavior names (null = all)
+  stance: "both", groupBy: "proposition", sort: null,  // {key, dir}
+  filters: {}, hidden: [], full: false, diff: true, search: "",
+  collapsed: new Set(), open: new Set(),
+};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+
+function save() {
+  try {
+    const {behaviors, stance, groupBy, sort, filters, hidden, full, diff} = S;
+    localStorage.setItem(STORE, JSON.stringify({behaviors, stance, groupBy, sort, filters, hidden, full, diff}));
+  } catch {}
+}
+function restore() {
+  try { Object.assign(S, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch {}
+  // a bookmarked view: #behavior=a,b&stance=skeptic&group=variation&search=lead&full=1
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.has("behavior")) S.behaviors = h.get("behavior").split(",");
+  if (h.has("stance")) S.stance = h.get("stance");
+  if (h.has("group")) S.groupBy = h.get("group");
+  if (h.has("search")) S.search = h.get("search");
+  if (h.has("full")) S.full = h.get("full") === "1";
+}
+
+let toastTimer;
+function toast(msg, bad = false) {
+  const t = $("toast");
+  t.textContent = msg; t.className = "show" + (bad ? " bad" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.className = ""), bad ? 6000 : 2200);
+}
+
+// ---------- model ----------
+const visibleSeeds = () => S.seeds.filter((s) => !S.behaviors || S.behaviors.includes(s.behavior));
+const allStances = () => [...new Set(S.seeds.flatMap((s) => s.fields.map((f) => f.stance).filter(Boolean)))].sort();
+const turnNum = (k) => (/^turn(\d+)$/.exec(k) || [])[1];
+
+/** Columns for these seeds: synthetic behavior/file, then every field key in first-seen order,
+ *  with turnN columns placed right after the opening, and a parse column when any seed fails. */
+function columns(seeds) {
+  const cols = new Map();
+  const add = (key, extra = {}) => cols.has(key) || cols.set(key, {key, stanced: false, kind: "synthetic", ...extra});
+  add("file");
+  if (new Set(seeds.map((s) => s.behavior)).size > 1) add("behavior");
+  for (const s of seeds) for (const f of s.fields) {
+    add(f.key, {kind: f.kind});
+    if (f.stance) cols.get(f.key).stanced = true;
+  }
+  let list = [...cols.values()];
+  const turns = list.filter((c) => turnNum(c.key)).sort((a, b) => turnNum(a.key) - turnNum(b.key));
+  list = list.filter((c) => !turnNum(c.key));
+  const at = list.findIndex((c) => c.key === "opening");
+  list.splice(at < 0 ? list.length : at + 1, 0, ...turns);
+  if (seeds.some((s) => s.error)) list.push({key: "parse", kind: "synthetic", stanced: false});
+  for (const c of list) {
+    const vals = seeds.flatMap((s) => values(s, c.key, true).map((v) => v.value));
+    const avg = vals.length ? vals.reduce((n, v) => n + v.length, 0) / vals.length : 0;
+    c.width = c.key === "file" ? "w-s" : avg < 40 ? "w-s" : avg < 160 ? "w-m" : "w-l";
+    const distinct = new Set(vals);
+    c.choices = distinct.size <= 15 && distinct.size < seeds.length && Math.max(0, ...vals.map((v) => v.length)) < 60
+      ? [...distinct].sort() : null;
+  }
+  return list;
+}
+
+/** The values a cell shows: [{stance, value, index}] (index = ordinal among same key+stance). */
+function values(seed, key, allStancesToo = false) {
+  if (key === "behavior") return [{stance: null, value: seed.behavior}];
+  if (key === "file") return [{stance: null, value: seed.file}];
+  if (key === "parse") return [{stance: null, value: seed.error || ""}];
+  const seen = {}, out = [];
+  for (const f of seed.fields) {
+    const sk = f.key + "\0" + f.stance;
+    const index = (seen[sk] = (seen[sk] ?? -1) + 1);
+    if (f.key !== key) continue;
+    if (!allStancesToo && f.stance && S.stance !== "both" && f.stance !== S.stance) continue;
+    out.push({stance: f.stance, value: f.value, index, kind: f.kind});
+  }
+  return out;
+}
+const cellText = (seed, key) => values(seed, key).map((v) => v.value).join("\n");
+const field = (seed, key) => (seed.fields.find((f) => f.key === key) || {}).value;
+
+const GROUPS = {
+  none: null,
+  proposition: (s) => ({key: field(s, "proposition_id") || field(s, "proposition") || "(no proposition)",
+                        desc: field(s, "proposition_id") ? field(s, "proposition") : ""}),
+  variation: (s) => ({key: field(s, "variation") || field(s, "cell") || "(base)", desc: ""}),
+};
+const GROUPED_COLS = {none: [], proposition: ["proposition_id", "proposition"], variation: ["variation", "cell"]};
+function groupOf(seed) {
+  const g = GROUPS[S.groupBy];
+  if (g) return g(seed);
+  return {key: cellText(seed, S.groupBy) || "(empty)", desc: ""};
+}
+
+function matcher(q) {
+  q = q.trim();
+  if (!q) return null;
+  let neg = false;
+  if (q.startsWith("!")) { neg = true; q = q.slice(1); }
+  let test;
+  const re = /^\/(.+)\/([a-z]*)$/.exec(q);
+  if (re) {
+    try { const r = new RegExp(re[1], re[2].includes("i") ? re[2] : re[2] + "i"); test = (t) => r.test(t); }
+    catch { test = () => true; }
+  } else { const l = q.toLowerCase(); test = (t) => t.toLowerCase().includes(l); }
+  return neg ? (t) => !test(t) : test;
+}
+
+function rows(cols) {
+  let seeds = visibleSeeds();
+  for (const [key, q] of Object.entries(S.filters)) {
+    if (!q || !cols.some((c) => c.key === key)) continue;
+    const col = cols.find((c) => c.key === key);
+    // a dropdown filter is an exact value; typed filters match text
+    const m = col.choices && col.choices.includes(q) ? (t) => t.split("\n").includes(q) : matcher(q);
+    seeds = seeds.filter((s) => m(cellText(s, key)));
+  }
+  const g = matcher(S.search);
+  if (g) seeds = seeds.filter((s) => g(cols.map((c) => cellText(s, c.key)).join("\n")));
+  if (S.sort && cols.some((c) => c.key === S.sort.key)) {
+    const {key, dir} = S.sort;
+    seeds = [...seeds].sort((a, b) => dir * cellText(a, key).localeCompare(cellText(b, key), undefined, {numeric: true}));
+  }
+  return seeds;
+}
+
+// ---------- word diff between two stance values ----------
+function diffPair(a, b) {
+  const ta = a.match(/\S+\s*/g) || [], tb = b.match(/\S+\s*/g) || [];
+  const n = ta.length, m = tb.length;
+  if (n * m > 400000) return [esc(a), esc(b)];
+  const ka = ta.map((t) => t.trim()), kb = tb.map((t) => t.trim());
+  const dp = Array.from({length: n + 1}, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = ka[i] === kb[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const keepA = new Array(n).fill(false), keepB = new Array(m).fill(false);
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (ka[i] === kb[j]) { keepA[i++] = keepB[j++] = true; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++;
+  }
+  const render = (toks, keep) => {
+    let out = "", run = "";
+    toks.forEach((t, i) => {
+      if (keep[i]) { if (run) { out += markRun(run); run = ""; } out += esc(t); }
+      else run += t;
+    });
+    return out + (run ? markRun(run) : "");
+  };
+  const markRun = (r) => { const t = r.replace(/\s+$/, ""); return `<mark>${esc(t)}</mark>${esc(r.slice(t.length))}`; };
+  return [render(ta, keepA), render(tb, keepB)];
+}
+
+// ---------- render ----------
+function renderControls() {
+  const counts = {};
+  for (const s of S.seeds) counts[s.behavior] = (counts[s.behavior] || 0) + 1;
+  const names = Object.keys(counts).sort();
+  $("behaviors").innerHTML = names.length > 1 ? names.map((b) =>
+    `<label class="chip"><input type="checkbox" data-beh="${esc(b)}" ${!S.behaviors || S.behaviors.includes(b) ? "checked" : ""}>${esc(b)} <span class="n">${counts[b]}</span></label>`).join("") : "";
+
+  const stances = allStances();
+  if (S.stance !== "both" && !stances.includes(S.stance)) S.stance = "both";
+  $("stance").innerHTML = [...stances, "both"].map((st) =>
+    `<button data-stance="${esc(st)}" class="${S.stance === st ? "on" : ""}">${esc(st)}</button>`).join("");
+
+  const cols = columns(visibleSeeds());
+  const opts = [["none", "none"], ["proposition", "proposition"], ["variation", "variation"],
+    ...cols.filter((c) => !["proposition", "variation", "file", "parse"].includes(c.key) && c.choices).map((c) => [c.key, c.key])];
+  if (!opts.some(([k]) => k === S.groupBy)) S.groupBy = "proposition";
+  $("groupBy").innerHTML = opts.map(([k, l]) => `<option value="${esc(k)}" ${k === S.groupBy ? "selected" : ""}>${esc(l)}</option>`).join("");
+
+  $("cols").innerHTML = cols.map((c) =>
+    `<label><input type="checkbox" data-col="${esc(c.key)}" ${S.hidden.includes(c.key) ? "" : "checked"}> ${esc(c.key)}${c.stanced ? ' <span class="help">· per stance</span>' : ""}</label>`).join("")
+    + `<div class="help" style="margin-top:6px">Filters: text matches anywhere · <code>!text</code> excludes · <code>/regex/</code></div>`;
+  $("full").checked = S.full; $("diff").checked = S.diff;
+  $("diff").parentElement.style.display = S.stance === "both" ? "" : "none";
+}
+
+function renderTable() {
+  const allCols = columns(visibleSeeds());
+  // the group header already shows what the rows are grouped by
+  const shown = GROUPED_COLS[S.groupBy] || [S.groupBy];
+  const cols = allCols.filter((c) => !S.hidden.includes(c.key) && (c.key === "file" || !shown.includes(c.key)));
+  const list = rows(allCols);
+  $("count").textContent = `${list.length} of ${visibleSeeds().length} seeds`;
+  if (!S.seeds.length) { $("wrap").innerHTML = `<div class="empty-state">No seeds found under ${esc(S.root)}</div>`; return; }
+
+  const head = cols.map((c, i) => {
+    const arrow = S.sort && S.sort.key === c.key ? (S.sort.dir > 0 ? "▲" : "▼") : "";
+    const q = S.filters[c.key] || "";
+    const filter = c.choices
+      ? `<select data-filter="${esc(c.key)}"><option value="">all</option>${c.choices.map((v) => `<option ${v === q ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`
+      : `<input type="text" data-filter="${esc(c.key)}" value="${esc(q)}" placeholder="filter">`;
+    return `<th class="${c.width}${c.key === "file" ? " sticky" : ""}"><div class="name" data-sort="${esc(c.key)}">${esc(c.key)}${c.stanced ? ' <span class="tag">per stance</span>' : ""}<span class="arrow">${arrow}</span></div><div class="filter">${filter}</div></th>`;
+  }).join("");
+
+  // group, keeping the row sort inside each group; groups ordered by key
+  const groups = new Map();
+  for (const s of list) {
+    const g = S.groupBy === "none" ? {key: "", desc: ""} : groupOf(s);
+    if (!groups.has(g.key)) groups.set(g.key, {...g, seeds: []});
+    groups.get(g.key).seeds.push(s);
+  }
+  const ordered = [...groups.values()].sort((a, b) => a.key.localeCompare(b.key, undefined, {numeric: true}));
+
+  let body = "";
+  for (const g of ordered) {
+    const gid = S.groupBy + ":" + g.key;
+    const collapsed = S.collapsed.has(gid);
+    if (S.groupBy !== "none") {
+      const sub = S.groupBy === "proposition" ? subCounts(g.seeds) : "";
+      body += `<tr class="grp"><td colspan="${cols.length}"><div class="g" data-group="${esc(gid)}"><span class="caret">${collapsed ? "▸" : "▾"}</span><b>${esc(g.key)}</b><span class="n">${g.seeds.length}${sub}</span><span class="desc" title="${esc(g.desc)}">${esc(g.desc)}</span></div></td></tr>`;
+    }
+    if (collapsed) continue;
+    for (const s of g.seeds) body += renderRow(s, cols);
+  }
+  $("wrap").innerHTML = `<table class="${S.full ? "" : "clamp"}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function subCounts(seeds) {
+  const c = {};
+  for (const s of seeds) { const v = GROUPS.variation(s).key; c[v] = (c[v] || 0) + 1; }
+  const parts = Object.entries(c).sort();
+  return parts.length > 1 ? " · " + parts.map(([k, n]) => `${esc(k)} ${n}`).join(", ") : "";
+}
+
+function renderRow(s, cols) {
+  const i = S.seeds.indexOf(s);
+  const cells = cols.map((c, ci) => {
+    const cls = `${c.width}${c.key === "file" ? " sticky" : ""}`;
+    if (c.key === "file") {
+      return `<td class="${cls} file"><button class="exp" data-open="${i}" title="Expand row">${S.open.has(s.id) ? "▾" : "▸"}</button>${esc(s.file)}${s.error ? ' <span class="err" title="' + esc(s.error) + '">!</span>' : ""}</td>`;
+    }
+    if (c.key === "behavior") return `<td class="${cls} file">${esc(s.behavior)}</td>`;
+    if (c.key === "parse") return `<td class="${cls}">${s.error ? `<span class="err">${esc(s.error)}</span>` : '<span class="okmark">ok</span>'}</td>`;
+    const vs = values(s, c.key);
+    if (!vs.length) return `<td class="${cls}"></td>`;
+    let html = vs.map((v) => esc(v.value));
+    if (S.diff && S.stance === "both" && vs.length === 2 && vs[0].stance && vs[1].stance) html = diffPair(vs[0].value, vs[1].value);
+    return `<td class="${cls}">${vs.map((v, k) =>
+      `<div class="sv">${v.stance && (S.stance === "both" || vs.length > 1) ? `<span class="st ${esc(v.stance)}">${esc(v.stance)}</span>` : ""}<div class="txt${v.value ? "" : " empty"}" data-seed="${i}" data-key="${esc(c.key)}" data-stance="${esc(v.stance ?? "")}" data-index="${v.index}" data-kind="${v.kind}" title="Double-click to edit">${html[k] || "(empty)"}</div></div>`).join("")}</td>`;
+  }).join("");
+  return `<tr class="row${s.error ? " bad" : ""}${S.open.has(s.id) ? " open" : ""}">${cells}</tr>`;
+}
+
+function render() { renderControls(); renderTable(); save(); }
+
+// ---------- editing ----------
+function startEdit(el) {
+  if (el.querySelector("textarea")) return;
+  const seed = S.seeds[+el.dataset.seed];
+  const stance = el.dataset.stance || null, key = el.dataset.key, index = +el.dataset.index;
+  const f = values(seed, key, true).find((v) => v.stance === stance && v.index === index);
+  const single = el.dataset.kind !== "tag";
+  el.closest("tr").classList.add("open");
+  el.innerHTML = `<textarea class="ed" rows="${single ? 1 : 6}"></textarea><div class="edbar"><button class="save">Save</button><button class="cancel">Cancel</button><span>⌘/Ctrl+Enter save · Esc cancel</span></div>`;
+  const ta = el.querySelector("textarea");
+  ta.value = f.value;
+  ta.style.height = Math.max(ta.scrollHeight + 4, single ? 30 : 110) + "px";
+  ta.focus();
+  const cancel = () => renderTable();
+  const commit = async () => {
+    if (ta.value === f.value) return cancel();
+    const res = await fetch("api/save", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id: seed.id, key, stance, index, value: ta.value, mtime: seed.mtime})});
+    const data = await res.json();
+    if (data.seed) S.seeds[S.seeds.findIndex((s) => s.id === data.seed.id)] = data.seed;
+    if (res.ok) { toast(`Saved ${seed.file} · ${key}${stance ? " (" + stance + ")" : ""}` + (data.seed.error ? " — but it no longer parses: " + data.seed.error : ""), !!data.seed.error); render(); }
+    else if (res.status === 409) { toast(data.error, true); render(); }
+    else toast(data.error || "save failed", true);
+  };
+  el.querySelector(".save").onclick = (e) => { e.stopPropagation(); commit(); };
+  el.querySelector(".cancel").onclick = (e) => { e.stopPropagation(); cancel(); };
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") cancel();
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey || single)) { e.preventDefault(); commit(); }
+  });
+}
+
+// ---------- events ----------
+document.addEventListener("dblclick", (e) => {
+  const el = e.target.closest(".txt");
+  if (el && !e.target.closest("textarea, .edbar")) { window.getSelection()?.removeAllRanges(); startEdit(el); }
+});
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if (t.dataset.stance !== undefined && t.closest("#stance")) { S.stance = t.dataset.stance; return render(); }
+  const sort = t.closest("[data-sort]");
+  if (sort) {
+    const key = sort.dataset.sort;
+    S.sort = !S.sort || S.sort.key !== key ? {key, dir: 1} : S.sort.dir > 0 ? {key, dir: -1} : null;
+    return render();
+  }
+  const grp = t.closest("[data-group]");
+  if (grp) { const id = grp.dataset.group; S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id); return renderTable(); }
+  if (t.dataset.open !== undefined) { const id = S.seeds[+t.dataset.open].id; S.open.has(id) ? S.open.delete(id) : S.open.add(id); return renderTable(); }
+  if (!t.closest("#colmenu")) $("colmenu").open = false;
+});
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.dataset.beh !== undefined) {
+    const on = [...document.querySelectorAll("[data-beh]")].filter((x) => x.checked).map((x) => x.dataset.beh);
+    S.behaviors = on.length === document.querySelectorAll("[data-beh]").length ? null : on;
+    return render();
+  }
+  if (t.dataset.col !== undefined) {
+    S.hidden = t.checked ? S.hidden.filter((k) => k !== t.dataset.col) : [...S.hidden, t.dataset.col];
+    renderTable(); return save();
+  }
+  if (t.tagName === "SELECT" && t.dataset.filter !== undefined) { S.filters[t.dataset.filter] = t.value; renderTable(); return save(); }
+  if (t.id === "groupBy") { S.groupBy = t.value; return render(); }
+  if (t.id === "full") { S.full = t.checked; S.open.clear(); return render(); }
+  if (t.id === "diff") { S.diff = t.checked; return render(); }
+});
+let typing;
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.tagName === "INPUT" && t.dataset.filter !== undefined || t.id === "search") {
+    if (t.id === "search") S.search = t.value; else S.filters[t.dataset.filter] = t.value;
+    clearTimeout(typing);
+    typing = setTimeout(() => {
+      const key = t.dataset.filter, pos = t.selectionStart;
+      renderTable(); save();
+      if (key !== undefined) {
+        const again = document.querySelector(`input[data-filter="${CSS.escape(key)}"]`);
+        if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+      }
+    }, 120);
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !e.target.closest("input, textarea, select")) { e.preventDefault(); $("search").focus(); }
+});
+$("reload").onclick = () => load(true);
+
+async function load(announce = false) {
+  const res = await fetch("api/seeds");
+  const data = await res.json();
+  S.seeds = data.seeds; S.root = data.root;
+  document.title = "Bloom Seeds";
+  render();
+  if (announce) toast(`Reloaded ${S.seeds.length} seeds`);
+}
+restore();
+$("search").value = S.search;
+load().catch((e) => { $("wrap").innerHTML = `<div class="empty-state">Couldn't load seeds: ${esc(e)}</div>`; });
+</script>
+</body>
+</html>

@@ -261,6 +261,15 @@ Generated files you can hand-edit before measuring: `scenarios/understanding.md`
 (feeds ideation if you rerun only `bloom ideation`), `scenarios/seeds/*.md` (the
 openings and packaging plans themselves), and `scenarios/dimensions/*.md`.
 
+To read and edit seeds in a browser table, run `uv run pander-seeds` (it scans
+`behaviors/**/scenarios/seeds`, or a directory you pass, and serves on
+http://127.0.0.1:8765). There's one column per frontmatter key and seed tag,
+and one per `<turnN>` when the follow-ups are scripted. You can switch between
+believer, skeptic, or both stances (with the words that differ highlighted),
+group rows by proposition or variation, and sort and filter every column.
+Double-click a value to edit it. The edit is written into the `.md` file in
+place, and a value that would break the seed's tag structure is refused.
+
 ### A new example from scratch
 
 ```bash
