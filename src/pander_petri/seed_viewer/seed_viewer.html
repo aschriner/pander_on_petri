@@ -380,7 +380,7 @@ function startEdit(el) {
   const commit = async () => {
     if (ta.value === f.value) return cancel();
     const res = await fetch("api/save", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({id: seed.id, key, stance, index, value: ta.value, mtime: seed.mtime})});
+      body: JSON.stringify({id: seed.id, key, stance, index, value: ta.value, version: seed.version})});
     const data = await res.json();
     if (data.seed) S.seeds[S.seeds.findIndex((s) => s.id === data.seed.id)] = data.seed;
     if (res.ok) { toast(`Saved ${seed.file} · ${key}${stance ? " (" + stance + ")" : ""}` + (data.seed.error ? " — but it no longer parses: " + data.seed.error : ""), !!data.seed.error); render(); }

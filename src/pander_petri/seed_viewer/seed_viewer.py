@@ -16,6 +16,7 @@ The server binds to localhost and reads and writes only seed files under the roo
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import webbrowser
@@ -105,6 +106,12 @@ def validate(text: str) -> str | None:
     return None
 
 
+def _version(text: str) -> str:
+    """What the page last saw of a seed. A hex string, since JS numbers can't hold
+    an exact ``st_mtime_ns``."""
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def describe(root: Path, path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     behavior = path.parent.parent.parent.relative_to(root).as_posix()  # <behavior>/scenarios/seeds/x.md
@@ -112,7 +119,7 @@ def describe(root: Path, path: Path) -> dict:
         id=path.relative_to(root).as_posix(),
         behavior=root.name if behavior == "." else behavior,
         file=path.stem,
-        mtime=path.stat().st_mtime_ns,
+        version=_version(text),
         fields=[dict(key=f["key"], stance=f["stance"], kind=f["kind"],
                      value=text[f["start"]:f["end"]].strip()) for f in fields(text)],
         error=validate(text),
@@ -162,10 +169,10 @@ def make_handler(root: Path) -> type[BaseHTTPRequestHandler]:
             req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             try:
                 path = _resolve(root, req["id"])
-                if path.stat().st_mtime_ns != req["mtime"]:
+                text = path.read_text(encoding="utf-8")
+                if _version(text) != req["version"]:
                     return self._json(409, dict(error="the file changed on disk; reloaded it, edit again",
                                                 seed=describe(root, path)))
-                text = path.read_text(encoding="utf-8")
                 path.write_text(edit(text, req["key"], req.get("stance"), req.get("index", 0), req["value"]),
                                 encoding="utf-8")
             except SeedEditError as e:

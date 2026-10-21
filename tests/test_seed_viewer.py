@@ -103,24 +103,25 @@ def post(url, payload):
 def test_api_lists_and_saves(server):
     root, url = server
     with urllib.request.urlopen(f"{url}/api/seeds") as res:
-        [seed] = json.load(res)["seeds"]
+        # parse numbers as the browser does (doubles), so the save round-trip is the page's
+        [seed] = json.load(res, parse_int=float)["seeds"]
     assert (seed["id"], seed["behavior"], seed["file"]) == ("beh/v2/scenarios/seeds/a.md", "beh/v2", "a")
     assert seed["error"] is None
     with urllib.request.urlopen(url) as res:
         assert b"<title>Bloom Seeds</title>" in res.read()
 
-    status, body = post(url, dict(id=seed["id"], key="turn2", stance="skeptic", value="New.", mtime=seed["mtime"]))
+    status, body = post(url, dict(id=seed["id"], key="turn2", stance="skeptic", value="New.", version=seed["version"]))
     assert status == 200
     assert "<turn2 stance=\"skeptic\">New.</turn2>" in (root / seed["id"]).read_text()
 
-    # the old mtime is now stale
-    status, body = post(url, dict(id=seed["id"], key="turn2", stance="skeptic", value="X", mtime=seed["mtime"]))
-    assert status == 409 and body["seed"]["mtime"] != seed["mtime"]
+    # the old version is now stale
+    status, body = post(url, dict(id=seed["id"], key="turn2", stance="skeptic", value="X", version=seed["version"]))
+    assert status == 409 and body["seed"]["version"] != seed["version"]
 
 
 def test_api_refuses_paths_outside_seed_dirs(server):
     _, url = server
-    status, _ = post(url, dict(id="beh/BEHAVIOR.md", key="x", value="y", mtime=0))
+    status, _ = post(url, dict(id="beh/BEHAVIOR.md", key="x", value="y", version=""))
     assert status == 400
 
 
