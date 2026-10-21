@@ -12,6 +12,8 @@ dependencies = [
     "pander-score",
     "petri-bloom>=0.2.6",
     "s3fs>=2025.9.0",
+    # Needed for botocore to read `aws login` sessions (login_session in ~/.aws/config).
+    "botocore[crt]>=1.43",
 ]
 
 [project.entry-points.inspect_ai]
@@ -27,6 +29,12 @@ pander-seeds = "pander_petri.seed_viewer.seed_viewer:main"
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv]
+# pander-score pins inspect-ai==0.3.248, which (via aioboto3) holds botocore
+# too old to support `aws login` credentials. It also pins openai==2.45.0, but
+# inspect-ai's OpenAI provider requires openai>=3.4.0. We only use pander-score utilities.
+override-dependencies = ["inspect-ai>=0.3.282", "openai>=3.4.0"]
 
 [tool.uv.sources]
 pander-score = { git = "https://github.com/sophronresearch/pander-score", rev = "18e4684dd80efd2f3a6baccce5ff3be407c3e2c8" }
