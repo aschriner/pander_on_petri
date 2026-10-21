@@ -2018,6 +2018,7 @@ dependencies = [
     { name = "inspect-petri" },
     { name = "pander-score" },
     { name = "petri-bloom" },
+    { name = "s3fs" },
 ]
 
 [package.dev-dependencies]
@@ -2030,6 +2031,7 @@ requires-dist = [
     { name = "inspect-petri", specifier = ">=3.1.1" },
     { name = "pander-score", git = "https://github.com/sophronresearch/pander-score?rev=18e4684dd80efd2f3a6baccce5ff3be407c3e2c8" },
     { name = "petri-bloom", specifier = ">=0.2.6" },
+    { name = "s3fs", specifier = ">=2025.9.0" },
 ]
 
 [package.metadata.requires-dev]
